@@ -163,6 +163,7 @@ public class RaycastRendererPanel extends javax.swing.JPanel {
         else{
             this.renderer.shading = false;
         }
+        this.renderer.changed();
     }//GEN-LAST:event_shadingCheckboxActionPerformed
 
     // Variables declaration - do not modify//GEN-BEGIN:variables

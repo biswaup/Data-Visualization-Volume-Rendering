@@ -33,7 +33,7 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
 
     //shading boolean
     public boolean shading = false;
-
+    //rendering type variable
     public String TypeOfRender = "Slicer";
 
     public RaycastRenderer() {
@@ -145,7 +145,6 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         double finalVal = gamma * val4567 + (1 - gamma) * val0123;
 
         return (short) Math.round(finalVal);
-
         //return volume.getVoxel(x, y, z);
     }
 
@@ -162,9 +161,9 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         }
 
         // without tri-linear interpolation
-        if (true) {
-            return (gradients.getGradient(x, y, z));
-        }
+        //if (true) {
+          //  return (gradients.getGradient(x, y, z));
+        //}
         //take floor values
         int x0 = (int) Math.floor(coord[0]);
         int y0 = (int) Math.floor(coord[1]);
@@ -256,36 +255,97 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
     }
 
     public TFColor CalcPhong(VoxelGradient grad, double[] viewVec, TFColor voxelColor){
-        // parameters to be used to shade
-        // ambient reflection coefficient, assuming light source is white
-        TFColor SHADING_AMBIENT_COEFF = new TFColor(0.1, 0.1, 0.1, 1.0);
-        // diffuse reflection coefficient
-        double SHADING_DIFF_COEFF = 0.5;
-        // specular reflection coefficient
-        double SHADING_SPEC_COEFF = 0.4;
-        // exponent used to approximate highligh
-        double SHADING_ALPHA = 10;
+        //compute N
+        double [] N = new double[3];
+        N[0] = grad.x;
+        N[1] = grad.y;
+        N[2] = grad.z;
 
-        double [] NormVec = new double[3];
+        //calculate H with L = L + V/|L + V|
+        double[] L = new double[3];
+        double[] H = new double[3];
+        VectorMath.setVector(L, viewVec[0], viewVec[1], viewVec[2]);
+
+        for (int i = 0; i < 3; i++) {
+            H[i] = viewVec[i] + L[i];
+        }
+        double l = VectorMath.length(H);
+        for (int i = 0; i < 3; i++) {
+            H[i] = H[i]/l;
+        }
+
+         //calculate reflection vector R
+        for (int i = 0; i < 3; i++) {
+            N[i] = N[i] *2 ;
+        }
+        double R1 = VectorMath.dotproduct(N, L);
+        double[] R = new double[3];
+
+        for (int i = 0; i < 3; i++) {
+            R[i] = R1 * N[i];
+        }
+        for (int i = 0; i < 3; i++) {
+            R[i] = R[i] - L[i];
+        }
+
         double dotProductNL = 0;
         double dotProductNH = 0;
         double colorIncrement = 0;
-        // surface normal at voxel
-        NormVec[0] = grad.x;
-        NormVec[1] = grad.y;
-        NormVec[2] = grad.z;
-        dotProductNL = Math.max(VectorMath.dotproduct(viewVec, NormVec) / (VectorMath.length(NormVec) + 1e-6), 0);
-        dotProductNH = dotProductNL;
-        colorIncrement = SHADING_SPEC_COEFF * Math.pow(dotProductNH, SHADING_ALPHA);
-        voxelColor.r = SHADING_AMBIENT_COEFF.r + voxelColor.r * (SHADING_DIFF_COEFF * dotProductNL) + colorIncrement;
-        voxelColor.g = SHADING_AMBIENT_COEFF.g + voxelColor.g * (SHADING_DIFF_COEFF * dotProductNL) + colorIncrement;
-        voxelColor.b = SHADING_AMBIENT_COEFF.b + voxelColor.b * (SHADING_DIFF_COEFF * dotProductNL) + colorIncrement;
+        double dotProductVR = 0;
+
+
+        dotProductNL = VectorMath.dotproduct(N, L);
+        dotProductNH = VectorMath.dotproduct(N, H);
+        dotProductVR = VectorMath.dotproduct(R, viewVec);
+
+
+        voxelColor.r = (0.1 * voxelColor.r) + (dotProductNL * 0.7 * voxelColor.r) + (voxelColor.r * 0.2 * (Math.pow(dotProductVR, 10)));
+        voxelColor.g = (0.1 * voxelColor.g) + (dotProductNL * 0.7 * voxelColor.g) + (0.2 * voxelColor.g * (Math.pow(dotProductVR, 10)));
+        voxelColor.b = (0.1 * voxelColor.b) + (dotProductNL * 0.7 * voxelColor.b) + (0.2 * voxelColor.b * (Math.pow(dotProductVR, 10)));
 
         return voxelColor;
     }
 
+    public boolean checkIfIntersected(double[] viewVec, double[]voxelCoord, double[] start, double[] end) {
+        //double len = VectorMath.length(viewVec);
+        //VectorMath.setVector(viewVec, viewVec[0]/len, viewVec[1]/len, viewVec[2]/len);
+        double[] t = new double[2];
+
+        viewVec[0] = viewVec[0] == 0 ? 0.001 : viewVec[0];
+        viewVec[1] = viewVec[1] == 0 ? 0.001 : viewVec[1];
+        viewVec[2] = viewVec[2] == 0 ? 0.001 : viewVec[2];
+
+        double[] lb = {0d, 0d, 0d};
+        double[] rt = {volume.getDimX(), volume.getDimY(), volume.getDimZ()};
+        double[] dirfrac = {1d / viewVec[0], 1d / viewVec[1], 1d / viewVec[2]};
+        double t1 = (lb[0] - voxelCoord[0]) * dirfrac[0];
+        double t2 = (rt[0] - voxelCoord[0]) * dirfrac[0];
+        double t3 = (lb[1] - voxelCoord[1]) * dirfrac[1];
+        double t4 = (rt[1] - voxelCoord[1]) * dirfrac[1];
+        double t5 = (lb[2] - voxelCoord[2]) * dirfrac[2];
+        double t6 = (rt[2] - voxelCoord[2]) * dirfrac[2];
+
+        double tmin = Math.max(Math.max(Math.min(t1, t2), Math.min(t3, t4)), Math.min(t5, t6));
+        double tmax = Math.min(Math.min(Math.max(t1, t2), Math.max(t3, t4)), Math.max(t5, t6));
+        t[0] = tmin;
+        t[1] = tmax;
+
+        // if tmax < 0, ray (line) is intersecting AABB, but whole AABB is behind us
+        if (tmax < 0) {
+            return false;
+        }
+
+        // if tmin > tmax, ray doesn't intersect AABB
+        if (tmin > tmax) {
+            return false;
+        }
+
+        // if tmin < 0, origin is inside or after the box
+        return true;
+    }
+
     //Maximum Intesnity Projection
-    void mip(double[] viewMatrix){
+    void mip(double[] viewMatrix) {
         // clear image
         for (int j = 0; j < image.getHeight(); j++) {
             for (int i = 0; i < image.getWidth(); i++) {
@@ -314,7 +374,7 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
 
         // interactive mode
         int sampleStep = 1;
-        if(interactiveMode == true) {
+        if (interactiveMode == true) {
             sampleStep = 5;
         }
 
@@ -376,23 +436,27 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
                     pixelColor.a = maxVoxelIntensity > 0 ? 1.0 : 0.0;  // this makes intensity 0 completely transparent and the rest opaque
 
                     // BufferedImage expects a pixel color packed as ARGB in an int
+
                     int c_alpha = pixelColor.a <= 1.0 ? (int) Math.floor(pixelColor.a * 255) : 255;
                     int c_red = pixelColor.r <= 1.0 ? (int) Math.floor(pixelColor.r * 255) : 255;
                     int c_green = pixelColor.g <= 1.0 ? (int) Math.floor(pixelColor.g * 255) : 255;
                     int c_blue = pixelColor.b <= 1.0 ? (int) Math.floor(pixelColor.b * 255) : 255;
                     int finalPixelColor = (c_alpha << 24) | (c_red << 16) | (c_green << 8) | c_blue;
                     image.setRGB(i, j, finalPixelColor);
-                }
+                } // end start < end
                 else {
+                    // background
                     image.setRGB(i, j, 1 << 24);
                 }
                 // move to the next pixel
                 voxelCoordXStart += uVec[0];
                 voxelCoordYStart += uVec[1];
                 voxelCoordZStart += uVec[2];
-            } // end imageWidth
-        } // end imageHeight
+
+            }
+        }
     }
+
 
     void compositing(double[] viewMatrix) {
         // clear image
@@ -588,7 +652,7 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
                     voxelCoord[1] = voxelCoordYStart + (end + sampleStep) * viewVec[1];
                     voxelCoord[2] = voxelCoordZStart + (end + sampleStep) * viewVec[2];
 
-                    for(long u = end; u > start; u -= sampleStep) {
+                    for(long u = start; u < end; u += sampleStep) {
 
                         // move to the next sample
                         voxelCoord[0] -= XStep;
